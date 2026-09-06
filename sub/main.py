@@ -288,48 +288,37 @@ class HealthChecker:
             return str(e), 1
 
     def _measure_latency(self, target_host: str, target_port: int = 443) -> float:
-        cmd = (
-            f"start=$(date +%s%N); "
-            f"timeout 5 bash -c 'echo > /dev/tcp/{target_host}/{target_port}' 2>/dev/null; "
-            f"result=$?; "
-            f"end=$(date +%s%N); "
-            f"ms=$(( (end - start) / 1000000 )); "
-            f"if [ $result -eq 0 ]; then echo $ms; else echo -1; fi"
-        )
-        output, code = self._ssh_cmd(cmd, timeout=15)
         try:
-            latency = float(output.strip().split("\n")[-1])
-            return latency if latency >= 0 else -1.0
+            start = time.time()
+            sock = socket.create_connection((target_host, target_port), timeout=5)
+            latency = (time.time() - start) * 1000
+            sock.close()
+            return latency
         except Exception:
             return -1.0
 
     def _test_download_speed(self) -> tuple:
-        cmd = (
-            f"start=$(date +%s%N); "
-            f"bytes=$(timeout 15 curl -s -o /dev/null -w '%{{size_download}}' '{self.test_file_url}' 2>/dev/null); "
-            f"end=$(date +%s%N); "
-            f"elapsed=$(( (end - start) / 1000000 )); "
-            f"echo \"$bytes|$elapsed\""
-        )
-        output, code = self._ssh_cmd(cmd, timeout=20)
         try:
-            parts = output.strip().split("|")
-            bytes_down = float(parts[0])
-            elapsed_ms = float(parts[1])
-            speed_kbps = (bytes_down * 8) / elapsed_ms if elapsed_ms > 0 else 0
-            return speed_kbps, bytes_down >= 5 * 1024 * 1024
+            start = time.time()
+            response = requests.get(self.test_file_url, timeout=15, stream=True)
+            response.raise_for_status()
+            total_bytes = 0
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    total_bytes += len(chunk)
+                if total_bytes >= 5 * 1024 * 1024:
+                    break
+            elapsed = time.time() - start
+            speed_kbps = (total_bytes * 8) / (elapsed * 1000) if elapsed > 0 else 0
+            return speed_kbps, total_bytes >= 5 * 1024 * 1024
         except Exception:
             return -1.0, False
 
     def _test_youtube(self) -> bool:
-        cmd = (
-            f"code=$(timeout 10 curl -s -o /dev/null -w '%{{http_code}}' "
-            f"-H 'User-Agent: Mozilla/5.0' '{self.youtube_url}' 2>/dev/null); "
-            f"echo $code"
-        )
-        output, code = self._ssh_cmd(cmd, timeout=15)
         try:
-            return output.strip() == "200"
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+            response = requests.get(self.youtube_url, timeout=10, headers=headers, allow_redirects=True)
+            return response.status_code == 200
         except Exception:
             return False
 
