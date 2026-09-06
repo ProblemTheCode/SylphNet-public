@@ -4,7 +4,6 @@
 import base64
 import json
 import re
-import socket
 import sys
 import time
 import urllib.request
@@ -250,7 +249,7 @@ class ConfigParser:
 
 
 class HealthChecker:
-    """Test V2Ray configs through Iranian SSH server"""
+    """Test V2Ray configs through Iranian SSH server - all tests run ON the server"""
 
     def __init__(
         self,
@@ -259,8 +258,7 @@ class HealthChecker:
         ssh_username: str,
         ssh_key_path: str,
         max_latency_ms: int = 4000,
-        test_file_url: str = "http://speedtest.tele2.net/5MB.zip",
-        youtube_url: str = "https://www.youtube.com",
+        test_file_url: str = "http://speedtest.tele2.net/1MB.zip",
     ):
         self.ssh_host = ssh_host
         self.ssh_port = ssh_port
@@ -268,7 +266,7 @@ class HealthChecker:
         self.ssh_key_path = ssh_key_path
         self.max_latency_ms = max_latency_ms
         self.test_file_url = test_file_url
-        self.youtube_url = youtube_url
+        self._ssh_ok = False
 
     def _ssh_cmd(self, command: str, timeout: int = 30) -> tuple:
         import os
@@ -286,67 +284,84 @@ class HealthChecker:
                 ],
                 capture_output=True, text=True, timeout=timeout,
             )
-            if result.returncode != 0 and result.stderr:
-                print(f"  [SSH ERR] {result.stderr.strip()[:100]}", file=sys.stderr)
             return result.stdout.strip(), result.returncode
         except Exception as e:
-            print(f"  [SSH EXCEPTION] {e}", file=sys.stderr)
             return str(e), 1
 
-    def _measure_latency(self, target_host: str, target_port: int = 443) -> float:
+    def _measure_latency_iran(self, target_host: str, target_port: int = 443) -> float:
+        """Measure TCP connect latency FROM Iran via SSH"""
+        cmd = (
+            "start=$(date +%s%N 2>/dev/null || time +%s%N); "
+            f"timeout 5 bash -c 'echo > /dev/tcp/{target_host}/{target_port}' 2>/dev/null; "
+            "result=$?; "
+            "end=$(date +%s%N 2>/dev/null || time +%s%N); "
+            "ms=$(( (end - start) / 1000000 )); "
+            "if [ $result -eq 0 ]; then echo $ms; else echo -1; fi"
+        )
+        output, code = self._ssh_cmd(cmd, timeout=10)
         try:
-            start = time.time()
-            sock = socket.create_connection((target_host, target_port), timeout=5)
-            latency = (time.time() - start) * 1000
-            sock.close()
-            return latency
+            latency = float(output.strip().split("\n")[-1])
+            return latency if latency >= 0 else -1.0
         except Exception:
             return -1.0
 
-    def _test_download_speed(self) -> tuple:
+    def _test_download_iran(self) -> tuple:
+        """Test download speed FROM Iran via SSH"""
+        cmd = (
+            "start=$(date +%s%N 2>/dev/null || time +%s%N); "
+            "bytes=$(timeout 15 curl -s -o /dev/null -w '%{size_download}' 'http://speedtest.tele2.net/1MB.zip' 2>/dev/null); "
+            "end=$(date +%s%N 2>/dev/null || time +%s%N); "
+            "elapsed=$(( (end - start) / 1000000 )); "
+            "echo $bytes|$elapsed"
+        )
+        output, code = self._ssh_cmd(cmd, timeout=20)
         try:
-            start = time.time()
-            response = requests.get(self.test_file_url, timeout=15, stream=True)
-            response.raise_for_status()
-            total_bytes = 0
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    total_bytes += len(chunk)
-                if total_bytes >= 5 * 1024 * 1024:
-                    break
-            elapsed = time.time() - start
-            speed_kbps = (total_bytes * 8) / (elapsed * 1000) if elapsed > 0 else 0
-            return speed_kbps, total_bytes >= 5 * 1024 * 1024
+            parts = output.strip().split("|")
+            bytes_down = float(parts[0])
+            elapsed_ms = float(parts[1])
+            speed_kbps = (bytes_down * 8) / elapsed_ms if elapsed_ms > 0 else 0
+            return speed_kbps, bytes_down >= 1024 * 1024
         except Exception:
             return -1.0, False
 
-    def _test_youtube(self) -> bool:
+    def _test_internet_iran(self) -> bool:
+        """Test internet access FROM Iran via SSH (Google+Telegram, YouTube is blocked)"""
+        cmd = (
+            "g=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' 'https://www.google.com' 2>/dev/null); "
+            "t=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' 'https://api.telegram.org' 2>/dev/null); "
+            "echo $g|$t"
+        )
+        output, code = self._ssh_cmd(cmd, timeout=15)
         try:
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-            response = requests.get(self.youtube_url, timeout=10, headers=headers, allow_redirects=True)
-            return response.status_code == 200
+            parts = output.strip().split("|")
+            google_ok = parts[0].strip() in ("200", "301", "302")
+            telegram_ok = parts[1].strip() in ("200", "301", "302")
+            return google_ok or telegram_ok
         except Exception:
             return False
 
     def check_config(self, config: V2RayConfig) -> HealthResult:
         result = HealthResult(config=config)
         try:
-            latency = self._measure_latency(config.address, config.port)
+            latency = self._measure_latency_iran(config.address, config.port)
             result.latency_ms = latency
             config.latency_ms = latency
             if latency < 0 or latency > self.max_latency_ms:
-                result.error = f"High latency: {latency:.0f}ms"
+                result.error = f"High latency from Iran: {latency:.0f}ms"
                 return result
-            speed, downloaded_ok = self._test_download_speed()
+
+            speed, downloaded_ok = self._test_download_iran()
             result.download_speed_kbps = speed
             if not downloaded_ok or speed < 500:
-                result.error = f"Slow download: {speed:.0f} kbps"
+                result.error = f"Slow download from Iran: {speed:.0f} kbps"
                 return result
-            youtube_ok = self._test_youtube()
-            result.youtube_ok = youtube_ok
-            if not youtube_ok:
-                result.error = "YouTube not accessible"
+
+            internet_ok = self._test_internet_iran()
+            result.youtube_ok = internet_ok
+            if not internet_ok:
+                result.error = "Internet not accessible from Iran"
                 return result
+
             result.healthy = True
             return result
         except Exception as e:
@@ -355,25 +370,27 @@ class HealthChecker:
 
     def check_configs(self, configs: List[V2RayConfig]) -> List[HealthResult]:
         results = []
-        print(f"[INFO] Testing SSH connection to {self.ssh_host}...")
+        print(f"[INFO] Testing SSH connection to {self.ssh_host}:{self.ssh_port}...")
         test_out, test_code = self._ssh_cmd("echo SSH_OK", timeout=10)
         if test_code == 0 and "SSH_OK" in test_out:
-            print(f"[INFO] SSH connection OK")
+            print(f"[INFO] SSH connection OK - all tests will run from Iran")
+            self._ssh_ok = True
         else:
-            print(f"[WARNING] SSH connection failed (code={test_code}): {test_out[:100]}")
-            print(f"[INFO] Falling back to direct TCP test (no Iran routing)")
+            print(f"[ERROR] SSH connection FAILED (code={test_code}): {test_out[:200]}")
+            print(f"[ERROR] Cannot test from Iran without SSH. Exiting.")
+            sys.exit(1)
 
-        print(f"[INFO] Checking {len(configs)} configs...")
+        print(f"[INFO] Checking {len(configs)} configs from Iranian server...")
         for i, config in enumerate(configs):
-            print(f"[{i+1}/{len(configs)}] Testing {config.config_type}://{config.address}:{config.port} ...")
+            print(f"[{i+1}/{len(configs)}] {config.config_type}://{config.address}:{config.port} ...", end=" ", flush=True)
             result = self.check_config(config)
             results.append(result)
             if result.healthy:
-                print(f"  OK | {result.latency_ms:.0f}ms | {result.download_speed_kbps:.0f} kbps")
+                print(f"OK | {result.latency_ms:.0f}ms | {result.download_speed_kbps:.0f} kbps")
             else:
-                print(f"  FAIL | {result.error}")
+                print(f"FAIL | {result.error}")
         healthy = [r for r in results if r.healthy]
-        print(f"\n[RESULT] {len(healthy)}/{len(configs)} configs healthy")
+        print(f"\n[RESULT] {len(healthy)}/{len(configs)} configs healthy from Iran")
         return results
 
 
