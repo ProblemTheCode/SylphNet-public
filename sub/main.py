@@ -3,7 +3,9 @@
 
 import base64
 import json
+import os
 import re
+import subprocess
 import sys
 import time
 import urllib.request
@@ -14,12 +16,39 @@ from typing import List, Optional
 from urllib.parse import urlparse, parse_qs, quote, unquote
 
 import jdatetime
-import requests
-import subprocess
-import tempfile
 
 
 CHANNEL_NAME = "SylphNet"
+
+IRAN_TEST_SCRIPT = r"""#!/bin/bash
+ACTION="$1"
+HOST="$2"
+PORT="$3"
+
+case "$ACTION" in
+  latency)
+    start=$(date +%s%N)
+    timeout 5 bash -c "echo > /dev/tcp/$HOST/$PORT" 2>/dev/null
+    result=$?
+    end=$(date +%s%N)
+    ms=$(( (end - start) / 1000000 ))
+    if [ $result -eq 0 ]; then echo "$ms"; else echo "-1"; fi
+    ;;
+  download)
+    bytes=$(timeout 15 curl -s -o /dev/null -w '%{size_download}' "http://speedtest.tele2.net/1MB.zip" 2>/dev/null)
+    if [ -z "$bytes" ]; then bytes=0; fi
+    echo "$bytes"
+    ;;
+  internet)
+    g=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' "https://www.google.com" 2>/dev/null)
+    t=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' "https://api.telegram.org" 2>/dev/null)
+    echo "${g:-0}|${t:-0}"
+    ;;
+  test)
+    echo "SSH_OK"
+    ;;
+esac
+"""
 
 
 @dataclass
@@ -48,14 +77,12 @@ class HealthResult:
     config: V2RayConfig
     latency_ms: float = 0.0
     download_speed_kbps: float = 0.0
-    youtube_ok: bool = False
+    internet_ok: bool = False
     healthy: bool = False
     error: str = ""
 
 
 class ConfigParser:
-    """Parse V2Ray subscription configs"""
-
     @staticmethod
     def decode_base64(data: str) -> str:
         data = data.strip()
@@ -87,8 +114,7 @@ class ConfigParser:
             config = json.loads(decoded)
             parsed = urlparse(link)
             return V2RayConfig(
-                raw=link,
-                protocol="vmess",
+                raw=link, protocol="vmess",
                 address=config.get("add", ""),
                 port=int(config.get("port", 443)),
                 uuid=config.get("id", ""),
@@ -108,29 +134,22 @@ class ConfigParser:
             parsed = urlparse(link)
             if parsed.scheme != "vless":
                 return None
-            uuid = parsed.username
-            address = parsed.hostname
-            port = parsed.port or 443
             params = parse_qs(parsed.query)
             sni = params.get("sni", [""])[0]
             host = params.get("host", [""])[0]
-            path = params.get("path", [""])[0]
-            security = params.get("security", ["auto"])[0]
-            network = params.get("type", ["tcp"])[0]
             pbk = params.get("pbk", [""])[0]
-            sid = params.get("sid", [""])[0]
+            security = params.get("security", ["auto"])[0]
             config_type = "reality" if (pbk or "reality" in security) else "vless"
             return V2RayConfig(
-                raw=link,
-                protocol="vless",
-                address=address,
-                port=port,
-                uuid=uuid,
-                network=network,
+                raw=link, protocol="vless",
+                address=parsed.hostname or "",
+                port=parsed.port or 443,
+                uuid=parsed.username or "",
+                network=params.get("type", ["tcp"])[0],
                 security=security,
-                sni=sni or host or address,
-                host=host or address,
-                path=path,
+                sni=sni or host or parsed.hostname or "",
+                host=host or parsed.hostname or "",
+                path=params.get("path", [""])[0],
                 config_type=config_type,
                 remark=ConfigParser.extract_remark(parsed.fragment),
             )
@@ -143,22 +162,17 @@ class ConfigParser:
             parsed = urlparse(link)
             if parsed.scheme != "trojan":
                 return None
-            uuid = parsed.username
-            address = parsed.hostname
-            port = parsed.port or 443
             params = parse_qs(parsed.query)
             sni = params.get("sni", [""])[0]
             host = params.get("host", [""])[0]
-            path = params.get("path", [""])[0]
             return V2RayConfig(
-                raw=link,
-                protocol="trojan",
-                address=address,
-                port=port,
-                uuid=uuid,
-                sni=sni or host or address,
-                host=host or address,
-                path=path,
+                raw=link, protocol="trojan",
+                address=parsed.hostname or "",
+                port=parsed.port or 443,
+                uuid=parsed.username or "",
+                sni=sni or host or parsed.hostname or "",
+                host=host or parsed.hostname or "",
+                path=params.get("path", [""])[0],
                 config_type="trojan",
                 remark=ConfigParser.extract_remark(parsed.fragment),
             )
@@ -171,13 +185,10 @@ class ConfigParser:
             if not link.startswith("ss://"):
                 return None
             parsed = urlparse(link)
-            address = parsed.hostname
-            port = parsed.port or 443
             return V2RayConfig(
-                raw=link,
-                protocol="ss",
-                address=address,
-                port=port,
+                raw=link, protocol="ss",
+                address=parsed.hostname or "",
+                port=parsed.port or 443,
                 config_type="ss",
                 remark=ConfigParser.extract_remark(parsed.fragment),
             )
@@ -187,16 +198,13 @@ class ConfigParser:
     @staticmethod
     def parse_hysteria2(link: str) -> Optional[V2RayConfig]:
         try:
-            if not link.startswith("hysteria2://"):
+            if not link.startswith(("hysteria2://", "hy2://")):
                 return None
             parsed = urlparse(link)
-            address = parsed.hostname
-            port = parsed.port or 443
             return V2RayConfig(
-                raw=link,
-                protocol="hysteria2",
-                address=address,
-                port=port,
+                raw=link, protocol="hysteria2",
+                address=parsed.hostname or "",
+                port=parsed.port or 443,
                 config_type="hysteria2",
                 remark=ConfigParser.extract_remark(parsed.fragment),
             )
@@ -209,13 +217,10 @@ class ConfigParser:
             if not link.startswith("tuic://"):
                 return None
             parsed = urlparse(link)
-            address = parsed.hostname
-            port = parsed.port or 443
             return V2RayConfig(
-                raw=link,
-                protocol="tuic",
-                address=address,
-                port=port,
+                raw=link, protocol="tuic",
+                address=parsed.hostname or "",
+                port=parsed.port or 443,
                 config_type="tuic",
                 remark=ConfigParser.extract_remark(parsed.fragment),
             )
@@ -225,8 +230,7 @@ class ConfigParser:
     @staticmethod
     def parse_subscription(content: str) -> List[V2RayConfig]:
         configs = []
-        lines = content.strip().split("\n")
-        for line in lines:
+        for line in content.strip().split("\n"):
             line = line.strip()
             if not line:
                 continue
@@ -239,7 +243,7 @@ class ConfigParser:
                 config = ConfigParser.parse_trojan(line)
             elif line.startswith("ss://"):
                 config = ConfigParser.parse_shadowsocks(line)
-            elif line.startswith("hysteria2://") or line.startswith("hy2://"):
+            elif line.startswith(("hysteria2://", "hy2://")):
                 config = ConfigParser.parse_hysteria2(line)
             elif line.startswith("tuic://"):
                 config = ConfigParser.parse_tuic(line)
@@ -249,242 +253,203 @@ class ConfigParser:
 
 
 class HealthChecker:
-    """Test V2Ray configs through Iranian SSH server - all tests run ON the server"""
+    """Test V2Ray configs through Iranian SSH server"""
 
-    def __init__(
-        self,
-        ssh_host: str,
-        ssh_port: int,
-        ssh_username: str,
-        ssh_key_path: str,
-        max_latency_ms: int = 4000,
-        test_file_url: str = "http://speedtest.tele2.net/1MB.zip",
-    ):
+    SCRIPT_PATH = "/tmp/subv2ray_test.sh"
+
+    def __init__(self, ssh_host, ssh_port, ssh_username, ssh_key_path, max_latency_ms=4000, test_file_url="http://speedtest.tele2.net/1MB.zip"):
         self.ssh_host = ssh_host
         self.ssh_port = ssh_port
         self.ssh_username = ssh_username
-        self.ssh_key_path = ssh_key_path
+        self.ssh_key_path = os.path.expanduser(ssh_key_path)
         self.max_latency_ms = max_latency_ms
         self.test_file_url = test_file_url
-        self._ssh_ok = False
 
-    def _ssh_cmd(self, command: str, timeout: int = 30) -> tuple:
-        import os
-        key_path = os.path.expanduser(self.ssh_key_path)
+    def _ssh_base(self):
+        return [
+            "ssh", "-i", self.ssh_key_path,
+            "-o", "StrictHostKeyChecking=no",
+            "-o", "ConnectTimeout=10",
+            "-o", "BatchMode=yes",
+            "-o", "LogLevel=ERROR",
+            "-p", str(self.ssh_port),
+            f"{self.ssh_username}@{self.ssh_host}",
+        ]
+
+    def _scp_to_server(self, local_content, remote_path):
+        """Write content to remote file via cat"""
+        cmd = self._ssh_base() + [f"cat > {remote_path}"]
+        result = subprocess.run(cmd, input=local_content, capture_output=True, text=True, timeout=15)
+        return result.returncode == 0
+
+    def _setup_script(self):
+        """Upload test script to server"""
+        print(f"[INFO] Uploading test script to {self.ssh_host}...")
+        ok = self._scp_to_server(IRAN_TEST_SCRIPT, self.SCRIPT_PATH)
+        if not ok:
+            print("[ERROR] Failed to upload test script")
+            sys.exit(1)
+        self._ssh_cmd(f"chmod +x {self.SCRIPT_PATH}")
+
+    def _ssh_cmd(self, command, timeout=30):
+        cmd = self._ssh_base() + [command]
         try:
-            result = subprocess.run(
-                [
-                    "ssh", "-i", key_path,
-                    "-o", "StrictHostKeyChecking=no",
-                    "-o", "ConnectTimeout=10",
-                    "-o", "BatchMode=yes",
-                    "-p", str(self.ssh_port),
-                    f"{self.ssh_username}@{self.ssh_host}",
-                    command,
-                ],
-                capture_output=True, text=True, timeout=timeout,
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
             return result.stdout.strip(), result.returncode
         except Exception as e:
             return str(e), 1
 
-    def _measure_latency_iran(self, target_host: str, target_port: int = 443) -> float:
-        """Measure TCP connect latency FROM Iran via SSH"""
-        cmd = (
-            "start=$(date +%s%N 2>/dev/null || time +%s%N); "
-            f"timeout 5 bash -c 'echo > /dev/tcp/{target_host}/{target_port}' 2>/dev/null; "
-            "result=$?; "
-            "end=$(date +%s%N 2>/dev/null || time +%s%N); "
-            "ms=$(( (end - start) / 1000000 )); "
-            "if [ $result -eq 0 ]; then echo $ms; else echo -1; fi"
-        )
-        output, code = self._ssh_cmd(cmd, timeout=10)
+    def _run_script(self, action, host="", port="", timeout=20):
+        """Run the test script on the Iranian server"""
+        cmd = f"{self.SCRIPT_PATH} {action} {host} {port}"
+        output, code = self._ssh_cmd(cmd, timeout=timeout)
+        return output, code
+
+    def _measure_latency(self, host, port=443):
+        output, code = self._run_script("latency", host, str(port), timeout=10)
         try:
-            latency = float(output.strip().split("\n")[-1])
-            return latency if latency >= 0 else -1.0
+            ms = float(output.strip().split("\n")[-1])
+            return ms if ms >= 0 else -1.0
         except Exception:
             return -1.0
 
-    def _test_download_iran(self) -> tuple:
-        """Test download speed FROM Iran via SSH"""
-        cmd = (
-            "start=$(date +%s%N 2>/dev/null || time +%s%N); "
-            "bytes=$(timeout 15 curl -s -o /dev/null -w '%{size_download}' 'http://speedtest.tele2.net/1MB.zip' 2>/dev/null); "
-            "end=$(date +%s%N 2>/dev/null || time +%s%N); "
-            "elapsed=$(( (end - start) / 1000000 )); "
-            "echo $bytes|$elapsed"
-        )
-        output, code = self._ssh_cmd(cmd, timeout=20)
+    def _test_download(self):
+        output, code = self._run_script("download", timeout=20)
         try:
-            parts = output.strip().split("|")
-            bytes_down = float(parts[0])
-            elapsed_ms = float(parts[1])
-            speed_kbps = (bytes_down * 8) / elapsed_ms if elapsed_ms > 0 else 0
+            bytes_down = float(output.strip())
+            speed_kbps = (bytes_down * 8) / 15000 if bytes_down > 0 else 0
             return speed_kbps, bytes_down >= 1024 * 1024
         except Exception:
             return -1.0, False
 
-    def _test_internet_iran(self) -> bool:
-        """Test internet access FROM Iran via SSH (Google+Telegram, YouTube is blocked)"""
-        cmd = (
-            "g=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' 'https://www.google.com' 2>/dev/null); "
-            "t=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' 'https://api.telegram.org' 2>/dev/null); "
-            "echo $g|$t"
-        )
-        output, code = self._ssh_cmd(cmd, timeout=15)
+    def _test_internet(self):
+        output, code = self._run_script("internet", timeout=15)
         try:
             parts = output.strip().split("|")
-            google_ok = parts[0].strip() in ("200", "301", "302")
-            telegram_ok = parts[1].strip() in ("200", "301", "302")
-            return google_ok or telegram_ok
+            g = parts[0].strip() in ("200", "301", "302")
+            t = parts[1].strip() in ("200", "301", "302") if len(parts) > 1 else False
+            return g or t
         except Exception:
             return False
 
-    def check_config(self, config: V2RayConfig) -> HealthResult:
+    def check_config(self, config):
         result = HealthResult(config=config)
         try:
-            latency = self._measure_latency_iran(config.address, config.port)
+            latency = self._measure_latency(config.address, config.port)
             result.latency_ms = latency
             config.latency_ms = latency
             if latency < 0 or latency > self.max_latency_ms:
-                result.error = f"High latency from Iran: {latency:.0f}ms"
+                result.error = f"High latency: {latency:.0f}ms"
                 return result
-
-            speed, downloaded_ok = self._test_download_iran()
-            result.download_speed_kbps = speed
-            if not downloaded_ok or speed < 500:
-                result.error = f"Slow download from Iran: {speed:.0f} kbps"
-                return result
-
-            internet_ok = self._test_internet_iran()
-            result.youtube_ok = internet_ok
-            if not internet_ok:
-                result.error = "Internet not accessible from Iran"
-                return result
-
             result.healthy = True
             return result
         except Exception as e:
             result.error = str(e)
             return result
 
-    def check_configs(self, configs: List[V2RayConfig]) -> List[HealthResult]:
+    def check_configs(self, configs):
         results = []
-        print(f"[INFO] Testing SSH connection to {self.ssh_host}:{self.ssh_port}...")
-        test_out, test_code = self._ssh_cmd("echo SSH_OK", timeout=10)
-        if test_code == 0 and "SSH_OK" in test_out:
-            print(f"[INFO] SSH connection OK - all tests will run from Iran")
-            self._ssh_ok = True
+
+        self._setup_script()
+
+        print("[INFO] Testing SSH connection...")
+        out, code = self._run_script("test", timeout=10)
+        if code == 0 and "SSH_OK" in out:
+            print("[INFO] SSH OK - testing from Iran")
         else:
-            print(f"[ERROR] SSH connection FAILED (code={test_code}): {test_out[:200]}")
-            print(f"[ERROR] Cannot test from Iran without SSH. Exiting.")
+            print(f"[ERROR] SSH FAILED: {out[:200]}")
             sys.exit(1)
 
-        print(f"[INFO] Checking {len(configs)} configs from Iranian server...")
+        print("[INFO] Testing download speed from Iran...")
+        speed, dl_ok = self._test_download()
+        if dl_ok:
+            print(f"[INFO] Download: {speed:.0f} kbps - OK")
+        else:
+            print(f"[WARNING] Download: {speed:.0f} kbps - may affect results")
+
+        print("[INFO] Testing internet access from Iran...")
+        inet_ok = self._test_internet()
+        print(f"[INFO] Internet: {'OK' if inet_ok else 'BLOCKED (expected for some sites)'}")
+
+        print(f"\n[INFO] Testing {len(configs)} configs for TCP reachability from Iran...")
         for i, config in enumerate(configs):
             print(f"[{i+1}/{len(configs)}] {config.config_type}://{config.address}:{config.port} ...", end=" ", flush=True)
             result = self.check_config(config)
             results.append(result)
             if result.healthy:
-                print(f"OK | {result.latency_ms:.0f}ms | {result.download_speed_kbps:.0f} kbps")
+                print(f"OK | {result.latency_ms:.0f}ms")
             else:
                 print(f"FAIL | {result.error}")
+
         healthy = [r for r in results if r.healthy]
-        print(f"\n[RESULT] {len(healthy)}/{len(configs)} configs healthy from Iran")
+        print(f"\n[RESULT] {len(healthy)}/{len(configs)} configs reachable from Iran")
         return results
 
 
 class SubscriptionManager:
-    """Manage subscription feeds and output"""
-
     @staticmethod
-    def fetch_subscription(url: str) -> str:
+    def fetch_subscription(url):
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        response = requests.get(url, timeout=30, headers=headers)
-        response.raise_for_status()
-        content = response.text.strip()
+        response = urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30)
+        content = response.read().decode("utf-8", errors="ignore").strip()
 
-        lines = content.strip().split("\n")
-        has_configs = any(
-            line.strip().startswith(("vmess://", "vless://", "trojan://", "ss://", "hysteria2://", "hy2://", "tuic://"))
-            for line in lines
-        )
-        if has_configs:
+        lines = content.split("\n")
+        protocols = ("vmess://", "vless://", "trojan://", "ss://", "hysteria2://", "hy2://", "tuic://")
+        if any(l.strip().startswith(protocols) for l in lines):
             return content
 
-        try:
-            decoded = ConfigParser.decode_base64(content)
-            if decoded:
-                decoded_lines = decoded.strip().split("\n")
-                has_decoded = any(
-                    line.strip().startswith(("vmess://", "vless://", "trojan://", "ss://", "hysteria2://", "hy2://", "tuic://"))
-                    for line in decoded_lines
-                )
-                if has_decoded:
-                    return decoded
-        except Exception:
-            pass
-
+        decoded = ConfigParser.decode_base64(content)
+        if decoded:
+            decoded_lines = decoded.split("\n")
+            if any(l.strip().startswith(protocols) for l in decoded_lines):
+                return decoded
         return content
 
     @staticmethod
-    def get_iranian_date() -> str:
+    def get_iranian_date():
         now = jdatetime.date.today()
         return f"{now.year:04d}-{now.month:02d}-{now.day:02d}"
 
     @staticmethod
-    def rename_configs(configs: List[V2RayConfig]) -> List[V2RayConfig]:
+    def rename_configs(configs):
         date_str = SubscriptionManager.get_iranian_date()
         sorted_configs = sorted(configs, key=lambda c: c.latency_ms if c.latency_ms >= 0 else 99999)
         for i, config in enumerate(sorted_configs, 1):
             new_remark = f"@{CHANNEL_NAME} | {date_str} #{i}"
             if config.raw.startswith("vmess://"):
                 config.raw = SubscriptionManager._update_vmess_remark(config.raw, new_remark)
-            elif config.raw.startswith("vless://"):
-                config.raw = SubscriptionManager._update_uri_remark(config.raw, new_remark)
-            elif config.raw.startswith("trojan://"):
-                config.raw = SubscriptionManager._update_uri_remark(config.raw, new_remark)
-            elif config.raw.startswith("ss://"):
-                config.raw = SubscriptionManager._update_uri_remark(config.raw, new_remark)
-            elif config.raw.startswith("hysteria2://") or config.raw.startswith("hy2://"):
-                config.raw = SubscriptionManager._update_uri_remark(config.raw, new_remark)
-            elif config.raw.startswith("tuic://"):
+            else:
                 config.raw = SubscriptionManager._update_uri_remark(config.raw, new_remark)
             config.remark = new_remark
         return sorted_configs
 
     @staticmethod
-    def _update_vmess_remark(raw: str, new_remark: str) -> str:
+    def _update_vmess_remark(raw, new_remark):
         try:
             b64 = raw.replace("vmess://", "")
-            decoded = ConfigParser.decode_base64(b64)
-            config = json.loads(decoded)
+            config = json.loads(ConfigParser.decode_base64(b64))
             config["ps"] = new_remark
-            new_b64 = base64.b64encode(json.dumps(config).encode("utf-8")).decode("utf-8")
+            new_b64 = base64.b64encode(json.dumps(config).encode()).decode()
             return f"vmess://{new_b64}"
         except Exception:
             return raw
 
     @staticmethod
-    def _update_uri_remark(raw: str, new_remark: str) -> str:
+    def _update_uri_remark(raw, new_remark):
         try:
-            encoded_remark = quote(new_remark, safe="")
-            if "#" in raw:
-                base = raw.rsplit("#", 1)[0]
-            else:
-                base = raw
-            return f"{base}#{encoded_remark}"
+            encoded = quote(new_remark, safe="")
+            base = raw.rsplit("#", 1)[0] if "#" in raw else raw
+            return f"{base}#{encoded}"
         except Exception:
             return raw
 
     @staticmethod
-    def generate_base64_subscription(configs: List[V2RayConfig]) -> str:
-        lines = [c.raw for c in configs]
-        content = "\n".join(lines)
-        return base64.b64encode(content.encode("utf-8")).decode("utf-8")
+    def generate_base64_subscription(configs):
+        content = "\n".join(c.raw for c in configs)
+        return base64.b64encode(content.encode()).decode()
 
     @staticmethod
-    def save_subscription(configs: List[V2RayConfig], output_path: Path):
+    def save_subscription(configs, output_path):
         output_path.parent.mkdir(parents=True, exist_ok=True)
         b64 = SubscriptionManager.generate_base64_subscription(configs)
         output_path.write_text(b64, encoding="utf-8")
@@ -493,17 +458,15 @@ class SubscriptionManager:
 
 def main():
     import argparse
-
-    parser = argparse.ArgumentParser(description="SubV2ray - V2Ray Config Health Checker")
-    parser.add_argument("--sub-url", required=True, help="Subscription URL(s), comma-separated for multiple")
-    parser.add_argument("--ssh-host", required=True, help="SSH server IP")
-    parser.add_argument("--ssh-port", type=int, default=22, help="SSH port")
-    parser.add_argument("--ssh-user", required=True, help="SSH username")
-    parser.add_argument("--ssh-key", required=True, help="SSH private key path")
-    parser.add_argument("--max-latency", type=int, default=4000, help="Max latency in ms")
-    parser.add_argument("--output", default="sub.txt", help="Output file path")
-    parser.add_argument("--test-file", default="http://speedtest.tele2.net/5MB.zip", help="Download test URL")
-    parser.add_argument("--max-configs", type=int, default=30, help="Max configs to test")
+    parser = argparse.ArgumentParser(description="SubV2ray Health Checker")
+    parser.add_argument("--sub-url", required=True, help="Subscription URL(s), comma-separated")
+    parser.add_argument("--ssh-host", required=True)
+    parser.add_argument("--ssh-port", type=int, default=22)
+    parser.add_argument("--ssh-user", required=True)
+    parser.add_argument("--ssh-key", required=True)
+    parser.add_argument("--max-latency", type=int, default=4000)
+    parser.add_argument("--output", default="sub.txt")
+    parser.add_argument("--max-configs", type=int, default=30)
     args = parser.parse_args()
 
     urls = [u.strip() for u in args.sub_url.split(",") if u.strip()]
@@ -522,13 +485,13 @@ def main():
                     seen.add(key)
                     all_configs.append(c)
         except Exception as e:
-            print(f"[WARNING] Failed to fetch from {url}: {e}")
+            print(f"[WARNING] Failed: {e}")
 
     configs = all_configs[:args.max_configs]
-    print(f"[INFO] Total unique configs: {len(all_configs)}, testing top {len(configs)}")
+    print(f"[INFO] Total unique: {len(all_configs)}, testing top {len(configs)}")
 
     if not configs:
-        print("[ERROR] No valid configs found", file=sys.stderr)
+        print("[ERROR] No configs found", file=sys.stderr)
         sys.exit(1)
 
     checker = HealthChecker(
@@ -537,25 +500,23 @@ def main():
         ssh_username=args.ssh_user,
         ssh_key_path=args.ssh_key,
         max_latency_ms=args.max_latency,
-        test_file_url=args.test_file,
     )
     results = checker.check_configs(configs)
-    healthy_configs = [r.config for r in results if r.healthy]
+    healthy = [r.config for r in results if r.healthy]
 
-    if healthy_configs:
-        renamed = SubscriptionManager.rename_configs(healthy_configs)
+    if healthy:
+        renamed = SubscriptionManager.rename_configs(healthy)
         date_str = SubscriptionManager.get_iranian_date()
-        print(f"\n[RENAMED] Configs renamed to @{CHANNEL_NAME} | {date_str} #N (sorted by ping)")
+        print(f"\n[RENAMED] @{CHANNEL_NAME} | {date_str} #N (sorted by ping)")
         for c in renamed:
             print(f"  {c.remark} | {c.latency_ms:.0f}ms")
 
-    output_path = Path(args.output)
-    SubscriptionManager.save_subscription(healthy_configs, output_path)
+    SubscriptionManager.save_subscription(healthy, Path(args.output))
 
-    if not healthy_configs:
-        print("[WARNING] No healthy configs found, saving empty subscription")
+    if not healthy:
+        print("[WARNING] No healthy configs found")
     else:
-        print(f"[SUCCESS] {len(healthy_configs)} healthy configs saved")
+        print(f"[SUCCESS] {len(healthy)} healthy configs saved")
 
 
 if __name__ == "__main__":
