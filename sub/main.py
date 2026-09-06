@@ -16,7 +16,8 @@ from urllib.parse import urlparse, parse_qs, quote, unquote
 
 import jdatetime
 import requests
-from sshtunnel import SSHTunnelForwarder
+import subprocess
+import tempfile
 
 
 CHANNEL_NAME = "SylphNet"
@@ -249,7 +250,7 @@ class ConfigParser:
 
 
 class HealthChecker:
-    """Test V2Ray configs through Iranian SSH tunnel"""
+    """Test V2Ray configs through Iranian SSH server"""
 
     def __init__(
         self,
@@ -268,84 +269,72 @@ class HealthChecker:
         self.max_latency_ms = max_latency_ms
         self.test_file_url = test_file_url
         self.youtube_url = youtube_url
-        self.tunnel: Optional[SSHTunnelForwarder] = None
 
-    def _start_tunnel(self) -> bool:
+    def _ssh_cmd(self, command: str, timeout: int = 30) -> tuple:
         try:
-            self.tunnel = SSHTunnelForwarder(
-                (self.ssh_host, self.ssh_port),
-                ssh_username=self.ssh_username,
-                ssh_pkey=self.ssh_key_path,
-                remote_bind_address=("127.0.0.1", 0),
+            result = subprocess.run(
+                [
+                    "ssh", "-i", self.ssh_key_path,
+                    "-o", "StrictHostKeyChecking=no",
+                    "-o", "ConnectTimeout=10",
+                    "-p", str(self.ssh_port),
+                    f"{self.ssh_username}@{self.ssh_host}",
+                    command,
+                ],
+                capture_output=True, text=True, timeout=timeout,
             )
-            self.tunnel.start()
-            return True
+            return result.stdout.strip(), result.returncode
         except Exception as e:
-            print(f"[ERROR] SSH tunnel failed: {e}", file=sys.stderr)
-            return False
-
-    def _stop_tunnel(self):
-        if self.tunnel:
-            try:
-                self.tunnel.stop()
-            except Exception:
-                pass
-            self.tunnel = None
+            return str(e), 1
 
     def _measure_latency(self, target_host: str, target_port: int = 443) -> float:
+        cmd = (
+            f"start=$(date +%s%N); "
+            f"timeout 5 bash -c 'echo > /dev/tcp/{target_host}/{target_port}' 2>/dev/null; "
+            f"result=$?; "
+            f"end=$(date +%s%N); "
+            f"ms=$(( (end - start) / 1000000 )); "
+            f"if [ $result -eq 0 ]; then echo $ms; else echo -1; fi"
+        )
+        output, code = self._ssh_cmd(cmd, timeout=15)
         try:
-            start = time.time()
-            sock = socket.create_connection((target_host, target_port), timeout=10)
-            latency = (time.time() - start) * 1000
-            sock.close()
-            return latency
+            latency = float(output.strip().split("\n")[-1])
+            return latency if latency >= 0 else -1.0
         except Exception:
             return -1.0
 
     def _test_download_speed(self) -> tuple:
+        cmd = (
+            f"start=$(date +%s%N); "
+            f"bytes=$(timeout 15 curl -s -o /dev/null -w '%{{size_download}}' '{self.test_file_url}' 2>/dev/null); "
+            f"end=$(date +%s%N); "
+            f"elapsed=$(( (end - start) / 1000000 )); "
+            f"echo \"$bytes|$elapsed\""
+        )
+        output, code = self._ssh_cmd(cmd, timeout=20)
         try:
-            start = time.time()
-            proxies = {}
-            if self.tunnel:
-                proxies = {
-                    "http": f"http://127.0.0.1:{self.tunnel.local_bind_port}",
-                    "https": f"http://127.0.0.1:{self.tunnel.local_bind_port}",
-                }
-            response = requests.get(
-                self.test_file_url, timeout=60, stream=True, proxies=proxies or None,
-            )
-            response.raise_for_status()
-            total_bytes = 0
-            for chunk in response.iter_content(chunk_size=8192):
-                if chunk:
-                    total_bytes += len(chunk)
-            elapsed = time.time() - start
-            speed_kbps = (total_bytes * 8) / (elapsed * 1000) if elapsed > 0 else 0
-            return speed_kbps, total_bytes >= 5 * 1024 * 1024
+            parts = output.strip().split("|")
+            bytes_down = float(parts[0])
+            elapsed_ms = float(parts[1])
+            speed_kbps = (bytes_down * 8) / elapsed_ms if elapsed_ms > 0 else 0
+            return speed_kbps, bytes_down >= 5 * 1024 * 1024
         except Exception:
             return -1.0, False
 
     def _test_youtube(self) -> bool:
+        cmd = (
+            f"code=$(timeout 10 curl -s -o /dev/null -w '%{{http_code}}' "
+            f"-H 'User-Agent: Mozilla/5.0' '{self.youtube_url}' 2>/dev/null); "
+            f"echo $code"
+        )
+        output, code = self._ssh_cmd(cmd, timeout=15)
         try:
-            proxies = {}
-            if self.tunnel:
-                proxies = {
-                    "http": f"http://127.0.0.1:{self.tunnel.local_bind_port}",
-                    "https": f"http://127.0.0.1:{self.tunnel.local_bind_port}",
-                }
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-            response = requests.get(
-                self.youtube_url, timeout=30, proxies=proxies, headers=headers, allow_redirects=True,
-            )
-            return response.status_code == 200
+            return output.strip() == "200"
         except Exception:
             return False
 
     def check_config(self, config: V2RayConfig) -> HealthResult:
         result = HealthResult(config=config)
-        if not self._start_tunnel():
-            result.error = "SSH tunnel failed"
-            return result
         try:
             latency = self._measure_latency(config.address, config.port)
             result.latency_ms = latency
@@ -365,12 +354,13 @@ class HealthChecker:
                 return result
             result.healthy = True
             return result
-        finally:
-            self._stop_tunnel()
+        except Exception as e:
+            result.error = str(e)
+            return result
 
     def check_configs(self, configs: List[V2RayConfig]) -> List[HealthResult]:
         results = []
-        print(f"[INFO] Checking {len(configs)} configs...")
+        print(f"[INFO] Checking {len(configs)} configs via SSH to {self.ssh_host}...")
         for i, config in enumerate(configs):
             print(f"[{i+1}/{len(configs)}] Testing {config.config_type}://{config.address}:{config.port} ...")
             result = self.check_config(config)
@@ -493,6 +483,7 @@ def main():
     parser.add_argument("--max-latency", type=int, default=4000, help="Max latency in ms")
     parser.add_argument("--output", default="sub.txt", help="Output file path")
     parser.add_argument("--test-file", default="http://speedtest.tele2.net/5MB.zip", help="Download test URL")
+    parser.add_argument("--max-configs", type=int, default=30, help="Max configs to test")
     args = parser.parse_args()
 
     urls = [u.strip() for u in args.sub_url.split(",") if u.strip()]
@@ -513,8 +504,8 @@ def main():
         except Exception as e:
             print(f"[WARNING] Failed to fetch from {url}: {e}")
 
-    configs = all_configs
-    print(f"[INFO] Total unique configs: {len(configs)}")
+    configs = all_configs[:args.max_configs]
+    print(f"[INFO] Total unique configs: {len(all_configs)}, testing top {len(configs)}")
 
     if not configs:
         print("[ERROR] No valid configs found", file=sys.stderr)
