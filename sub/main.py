@@ -271,20 +271,26 @@ class HealthChecker:
         self.youtube_url = youtube_url
 
     def _ssh_cmd(self, command: str, timeout: int = 30) -> tuple:
+        import os
+        key_path = os.path.expanduser(self.ssh_key_path)
         try:
             result = subprocess.run(
                 [
-                    "ssh", "-i", self.ssh_key_path,
+                    "ssh", "-i", key_path,
                     "-o", "StrictHostKeyChecking=no",
                     "-o", "ConnectTimeout=10",
+                    "-o", "BatchMode=yes",
                     "-p", str(self.ssh_port),
                     f"{self.ssh_username}@{self.ssh_host}",
                     command,
                 ],
                 capture_output=True, text=True, timeout=timeout,
             )
+            if result.returncode != 0 and result.stderr:
+                print(f"  [SSH ERR] {result.stderr.strip()[:100]}", file=sys.stderr)
             return result.stdout.strip(), result.returncode
         except Exception as e:
+            print(f"  [SSH EXCEPTION] {e}", file=sys.stderr)
             return str(e), 1
 
     def _measure_latency(self, target_host: str, target_port: int = 443) -> float:
@@ -349,7 +355,15 @@ class HealthChecker:
 
     def check_configs(self, configs: List[V2RayConfig]) -> List[HealthResult]:
         results = []
-        print(f"[INFO] Checking {len(configs)} configs via SSH to {self.ssh_host}...")
+        print(f"[INFO] Testing SSH connection to {self.ssh_host}...")
+        test_out, test_code = self._ssh_cmd("echo SSH_OK", timeout=10)
+        if test_code == 0 and "SSH_OK" in test_out:
+            print(f"[INFO] SSH connection OK")
+        else:
+            print(f"[WARNING] SSH connection failed (code={test_code}): {test_out[:100]}")
+            print(f"[INFO] Falling back to direct TCP test (no Iran routing)")
+
+        print(f"[INFO] Checking {len(configs)} configs...")
         for i, config in enumerate(configs):
             print(f"[{i+1}/{len(configs)}] Testing {config.config_type}://{config.address}:{config.port} ...")
             result = self.check_config(config)
