@@ -1,3 +1,0 @@
-vless://6aa028bc-08a9-41d1-a397-d60ce65df081@170.114.45.6:80?security=none&type=ws&path=%2Fshalana&host=shalana.xyz#%40SylphNet%20%7C%201405-06-16%20%231
-vless://c1e7dc1e-150d-4709-b39e-c36f43411480@support.zoom.us:80?security=none&type=ws&path=%2F&host=support.zoom.us#%40SylphNet%20%7C%201405-06-16%20%232
-vless://c1e7dc1e-150d-4709-b39e-c36f43411480@149.130.188.248:62145?security=none&type=ws&path=%2F&host=149.130.188.248#%40SylphNet%20%7C%201405-06-16%20%233
