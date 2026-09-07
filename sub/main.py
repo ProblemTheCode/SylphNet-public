@@ -36,13 +36,15 @@ case "$ACTION" in
     kill -0 $(cat /tmp/xray.pid) 2>/dev/null && echo "STARTED" || echo "FAILED"
     ;;
   test)
-    google=$(timeout 8 curl -s -o /dev/null -w '%{http_code}' --proxy socks5h://127.0.0.1:10809 "https://www.google.com" 2>/dev/null)
-    telegram=$(timeout 8 curl -s -o /dev/null -w '%{http_code}' --proxy socks5h://127.0.0.1:10809 "https://api.telegram.org" 2>/dev/null)
-    echo "${google:-0}|${telegram:-0}"
+    g1=$(timeout 6 curl -s -o /dev/null -w '%{http_code}' --proxy http://127.0.0.1:10809 "http://ifconfig.me" 2>/dev/null)
+    g2=$(timeout 6 curl -s -o /dev/null -w '%{http_code}' --proxy http://127.0.0.1:10809 "https://www.google.com" 2>/dev/null)
+    t1=$(timeout 6 curl -s -o /dev/null -w '%{http_code}' --proxy http://127.0.0.1:10809 "http://api.telegram.org" 2>/dev/null)
+    t2=$(timeout 6 curl -s -o /dev/null -w '%{http_code}' --proxy http://127.0.0.1:10809 "https://api.telegram.org" 2>/dev/null)
+    echo "${g1:-0}|${g2:-0}|${t1:-0}|${t2:-0}"
     ;;
   latency)
     start=$(date +%s%N)
-    timeout 5 curl -s -o /dev/null --proxy socks5h://127.0.0.1:10809 "https://www.google.com" 2>/dev/null
+    timeout 5 curl -s -o /dev/null --proxy http://127.0.0.1:10809 "http://ifconfig.me" 2>/dev/null
     result=$?
     end=$(date +%s%N)
     ms=$(( (end - start) / 1000000 ))
@@ -132,6 +134,9 @@ class ConfigParser:
             pbk = params.get("pbk", [""])[0]
             sid = params.get("sid", [""])[0]
             ct = "reality" if (pbk or sec == "reality") else sec
+            flow_val = params.get("flow", [""])[0]
+            if not flow_val and ct == "reality":
+                flow_val = "xtls-rprx-vision"
             return V2RayConfig(
                 raw=link, protocol="vless",
                 address=parsed.hostname or "", port=parsed.port or 443,
@@ -140,7 +145,7 @@ class ConfigParser:
                 security=sec, sni=params.get("sni", [""])[0] or params.get("host", [""])[0] or parsed.hostname or "",
                 host=params.get("host", [""])[0] or parsed.hostname or "",
                 path=params.get("path", [""])[0],
-                flow=params.get("flow", [""])[0], fp=fp, pbk=pbk, sid=sid,
+                flow=flow_val, fp=fp, pbk=pbk, sid=sid,
                 config_type=ct, remark=ConfigParser.extract_remark(parsed.fragment),
             )
         except Exception:
@@ -274,37 +279,66 @@ class XrayConfigGenerator:
     @staticmethod
     def _base(port):
         return {
-            "log": {"loglevel": "none"},
+            "log": {"loglevel": "warning"},
             "inbounds": [{
                 "port": port, "listen": "127.0.0.1",
-                "protocol": "socks", "settings": {"udp": True}
-            }]
+                "protocol": "http",
+                "settings": {"timeout": 0, "allowTransparent": False, "userLevel": 0},
+                "tag": "http-in"
+            }],
+            "outbounds": [{
+                "protocol": "freedom",
+                "tag": "direct"
+            }],
+            "routing": {
+                "domainStrategy": "IPIfNonMatch",
+                "rules": [{
+                    "type": "field",
+                    "ip": ["geoip:private"],
+                    "outboundTag": "direct"
+                }]
+            }
         }
 
     @staticmethod
     def _stream(cfg):
         s = {"network": cfg.network}
+        sni = cfg.sni or cfg.host or cfg.address
+        fp = cfg.fp or "chrome"
+        alpn_val = "h2,http/1.1"
+
         if cfg.security in ("reality",) or cfg.pbk:
             s["security"] = "reality"
             s["realitySettings"] = {
-                "serverName": cfg.sni, "fingerprint": cfg.fp or "chrome",
-                "publicKey": cfg.pbk, "shortId": cfg.sid,
-                "serverPort": cfg.port,
+                "serverName": sni,
+                "allowInsecure": True,
+                "fingerprint": fp,
+                "alpn": alpn_val.split(","),
+                "show": False,
+                "publicKey": cfg.pbk,
+                "shortId": cfg.sid,
+                "spiderX": cfg.path or "/",
             }
         elif cfg.security == "tls":
             s["security"] = "tls"
-            s["tlsSettings"] = {"serverName": cfg.sni, "fingerprint": cfg.fp or "chrome"}
+            s["tlsSettings"] = {
+                "serverName": sni, "fingerprint": fp,
+                "allowInsecure": True,
+                "alpn": alpn_val.split(","),
+            }
         else:
             s["security"] = "none"
 
         if cfg.network == "ws":
-            s["wsSettings"] = {"path": cfg.path, "headers": {"Host": cfg.host}}
+            s["wsSettings"] = {"path": cfg.path, "headers": {"Host": cfg.host} if cfg.host else {}}
         elif cfg.network == "grpc":
-            s["grpcSettings"] = {"serviceName": cfg.path.lstrip("/")}
+            s["grpcSettings"] = {"serviceName": cfg.path.lstrip("/"), "multiMode": True}
         elif cfg.network == "h2":
             s["httpSettings"] = {"path": cfg.path, "host": [cfg.host]}
         elif cfg.network == "xhttp":
             s["xhttpSettings"] = {"mode": "auto", "path": cfg.path or "/"}
+        elif cfg.network == "tcp":
+            s["tcpSettings"] = {"header": {"type": "none"}}
         return s
 
     @staticmethod
@@ -424,15 +458,17 @@ class HealthChecker:
             self._run_script("stop", timeout=5)
             return result
 
-        out, code = self._run_script("test", timeout=25)
+        out, code = self._run_script("test", timeout=30)
         self._run_script("stop", timeout=5)
 
         try:
-            parts = out.split("|")
-            g = parts[0].strip() if parts else "0"
-            t = parts[1].strip() if len(parts) > 1 else "0"
-            result.google_ok = g in ("200", "301", "302")
-            result.telegram_ok = t in ("200", "301", "302")
+            parts = out.strip().split("|")
+            g_http = parts[0].strip() if len(parts) > 0 else "0"
+            g_https = parts[1].strip() if len(parts) > 1 else "0"
+            t_http = parts[2].strip() if len(parts) > 2 else "0"
+            t_https = parts[3].strip() if len(parts) > 3 else "0"
+            result.google_ok = g_http in ("200", "301", "302") or g_https in ("200", "301", "302")
+            result.telegram_ok = t_http in ("200", "301", "302") or t_https in ("200", "301", "302")
         except Exception:
             result.error = f"Bad test output: {out[:50]}"
             return result
@@ -445,7 +481,7 @@ class HealthChecker:
                 result.latency_ms = 0
             result.healthy = True
         else:
-            result.error = f"Proxy test failed: g={g} t={t}"
+            result.error = f"Proxy fail: g_http={g_http} g_https={g_https} t_http={t_http} t_https={t_https}"
 
         return result
 
