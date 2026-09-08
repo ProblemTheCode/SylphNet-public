@@ -1,5 +1,5 @@
 SylphNet subscription metadata
-last-update: 2026-09-08 22:00:18 UTC
+last-update: 2026-09-08 22:15:14 UTC
 jalali-date: 1405-06-17
 configs: 296
 source: https://raw.githubusercontent.com/iampedii/whitedns-sub/refs/heads/main/base64.txt
