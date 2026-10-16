@@ -10,11 +10,11 @@
 
 <img src="https://img.shields.io/badge/⚡_SylphNet-Free_V2Ray_Subscription-3C9AE8?style=for-the-badge&labelColor=000000" alt="SylphNet">
 
-### Fast • Fresh • Free — Updated Every 30 Minutes
+### Fast • Fresh • Free — Updated Every 15 Minutes
 
-![Configs](https://img.shields.io/badge/Configs-Thousands-00C853?style=flat-square)
+![Configs](https://img.shields.io/badge/Configs-350%2B-00C853?style=flat-square)
 ![Protocols](https://img.shields.io/badge/VLESS_|_VMess_|_Trojan_|_SS-9C27B0?style=flat-square)
-![Update](https://img.shields.io/badge/Auto_Update-Every_30_Min-FF6B00?style=flat-square)
+![Update](https://img.shields.io/badge/Auto_Update-Every_15_Min-FF6B00?style=flat-square)
 ![License](https://img.shields.io/badge/Config-100%25_Free-3C9AE8?style=flat-square)
 
 **[📥 GET SUBSCRIPTION](#-subscription-link)** • **[📱 HOW TO USE](#-how-to-use)** • **[❓ FAQ](#-faq)**
@@ -88,7 +88,7 @@ https://raw.githubusercontent.com/ProblemTheCode/SylphNet-public/refs/heads/main
 
 | | |
 |---|---|
-| 🔄 **Always Fresh** | Subscription refreshes **every 30 minutes** automatically |
+| 🔄 **Always Fresh** | Subscription refreshes **every 15 minutes** automatically |
 | 🌍 **All Protocols** | VLESS, VMess, Trojan, Shadowsocks — all in one sub |
 | 🏷️ **Clean Names** | Every config labeled `@SylphNet | Date #N` so you always know it's fresh |
 | 📅 **Jalali Date** | Persian calendar in every config name — instantly see the update date |
@@ -116,7 +116,7 @@ https://raw.githubusercontent.com/ProblemTheCode/SylphNet-public/refs/heads/main
 <summary><b>Configs are not connecting — what should I do?</b></summary>
 <br>
 
-- **Update your subscription** — configs refresh every 30 minutes, old ones die fast
+- **Update your subscription** — configs refresh every 15 minutes, old ones die fast
 - Try a different config from the list (lower numbers = newest batch)
 - Switch between WiFi / mobile data — some networks block different servers
 - Check that your client app is updated to the latest version
@@ -127,7 +127,7 @@ https://raw.githubusercontent.com/ProblemTheCode/SylphNet-public/refs/heads/main
 <summary><b>How often should I update?</b></summary>
 <br>
 
-Your client updates the sub on its own schedule (usually manual or every few hours). For the freshest configs, **update the subscription every time before connecting**. The sub itself refreshes server-side every 30 minutes.
+Your client updates the sub on its own schedule (usually manual or every few hours). For the freshest configs, **update the subscription every time before connecting**. The sub itself refreshes server-side every 15 minutes.
 
 </details>
 
