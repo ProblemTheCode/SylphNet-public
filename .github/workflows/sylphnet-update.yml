@@ -1,10 +1,8 @@
-# Place this file at: .github/workflows/sylphnet-update.yml  (on main branch)
-# No secrets needed — uses the built-in GITHUB_TOKEN (auto-issued, never expires).
-name: SylphNet Auto Update
+name: Sub Refresh
 
 on:
   schedule:
-    - cron: '*/30 * * * *'   # change to '*/15 * * * *' for every-15-minutes
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -21,7 +19,9 @@ jobs:
           python-version: '3.12'
 
       - name: Build subscription
-        run: python update-kit/update.py --out ./out --min-configs 20
+        env:
+          SOURCE_LIST: ${{ secrets.SOURCE_LIST }}
+        run: python tools/build.py --out ./out --min-configs 20
 
       - name: Publish to sub/
         run: |

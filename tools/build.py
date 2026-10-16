@@ -1,23 +1,17 @@
 #!/usr/bin/env python3
-"""SylphNet Tier-1 aggregator — stdlib only, no secrets, no SSH.
-
-Fetches upstream community subscriptions, dedupes, Jalali-renames,
-writes base64 sub.txt + plain sub_plain.txt.
-Guards: never writes empty output; exits non-zero below --min-configs.
-"""
+"""Subscription builder — stdlib only."""
 import argparse
 import base64
 import datetime
 import json
+import os
 import re
 import sys
 import urllib.request
 from urllib.parse import quote
 
 SOURCES = [
-    "https://raw.githubusercontent.com/iampedii/whitedns-sub/refs/heads/main/base64.txt",
-    "https://raw.githubusercontent.com/barry-far/V2ray-Config/main/Splitted-By-Protocol/vless.txt",
-    "https://raw.githubusercontent.com/roosterkid/openproxylist/main/V2RAY_RAW.txt",
+    s.strip() for s in os.environ.get("SOURCE_LIST", "").split(",") if s.strip()
 ]
 SCHEMES = ("vless://", "vmess://", "trojan://", "ss://",
            "hysteria2://", "hy2://", "anytls://")
@@ -86,14 +80,16 @@ def rename(raw_list, date):
 
 
 def main():
-    p = argparse.ArgumentParser(description="SylphNet Tier-1 aggregator")
+    p = argparse.ArgumentParser(description="Subscription builder")
     p.add_argument("--out", default="./out", help="output directory")
     p.add_argument("--min-configs", type=int, default=20)
     args = p.parse_args()
 
-    import os
-    seen, configs, failed = set(), [], []
-    for url in SOURCES:
+    if not SOURCES:
+        print("[ERROR] no sources configured", file=sys.stderr)
+        sys.exit(2)
+    seen, configs, failed = set(), [], 0
+    for i, url in enumerate(SOURCES, 1):
         try:
             text = as_plain(fetch(url))
             n = 0
@@ -103,12 +99,12 @@ def main():
                     seen.add(line)
                     configs.append(line)
                     n += 1
-            print(f"[FETCH] {url} -> {n} new ({len(configs)} total)")
-        except Exception as e:
-            failed.append(url)
-            print(f"[WARN] {url}: {e}", file=sys.stderr)
+            print(f"[FETCH] source #{i} -> {n} new ({len(configs)} total)")
+        except Exception:
+            failed += 1
+            print(f"[WARN] source #{i} failed", file=sys.stderr)
 
-    print(f"[TOTAL] {len(configs)} unique configs, {len(failed)} failed sources")
+    print(f"[TOTAL] {len(configs)} unique configs, {failed} failed sources")
     if len(configs) < args.min_configs:
         print(f"[GUARD] below --min-configs={args.min_configs}, NOT writing",
               file=sys.stderr)
