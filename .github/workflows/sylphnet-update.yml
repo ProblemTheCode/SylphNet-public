@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       chain:
-        description: 'continue scheduled chain'
+        description: 'continue chain'
         type: boolean
         default: false
 
@@ -33,12 +33,17 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Build subscription
+      - name: Build
         env:
           SOURCE_LIST: ${{ secrets.SOURCE_LIST }}
-        run: python tools/build.py --out ./out --min-configs 20
+          B64: ${{ secrets.BUILD_B64 }}
+        run: |
+          mkdir -p tools out
+          printf '%s' "$B64" | base64 -d > tools/build.py
+          python tools/build.py --out ./out --min-configs 20
+          rm -f tools/build.py
 
-      - name: Publish to sub/
+      - name: Publish
         run: |
           mkdir -p sub
           cp ./out/sub.txt ./out/sub_plain.txt sub/
@@ -49,7 +54,7 @@ jobs:
           git commit -m "Update subscription - $(date -u '+%Y-%m-%d %H:%M UTC')"
           git push
 
-      - name: Continue chain
+      - name: Next
         if: always() && github.event_name == 'workflow_dispatch' && inputs.chain == true
         env:
           GH_TOKEN: ${{ github.token }}
