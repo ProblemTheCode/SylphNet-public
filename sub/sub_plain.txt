@@ -1,6 +1,6 @@
 #profile-title: SylphNet | 1405-07-25
 #profile-update-interval: 1
-#last-update: 2026-10-17 20:04 UTC
+#last-update: 2026-10-17 20:19 UTC
 #configs: 315 aggregated
 vless://12be745f-0de5-4909-ac5e-604ac2b8af30@139.162.187.56:443?security=reality&type=tcp&sni=amp-api-edge.apps.apple.com&fp=chrome&flow=xtls-rprx-vision&sid=12954892dc8d4acc&pbk=JGsmGevFuMeQignXVLFIUmM2tpei4GtXKEQFMEIR_3U#%40SylphNet%20%7C%201405-07-25%20%231
 vless://8fb65472-5957-4f64-ba2d-b5812b2f155a@141.144.207.185:62145?security=none&type=tcp#%40SylphNet%20%7C%201405-07-25%20%232
