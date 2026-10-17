@@ -1,6 +1,6 @@
 #profile-title: SylphNet | 1405-07-25
 #profile-update-interval: 1
-#last-update: 2026-10-17 11:45 UTC
+#last-update: 2026-10-17 12:00 UTC
 #configs: 386 aggregated
 vless://244d9eab-3311-40c7-b47f-4968dc3088a6@195.231.37.150:443?security=reality&type=tcp&packetEncoding=none&allowInsecure=1&sni=tcpit3.figurapn.ru&fp=chrome&sid=868419504747f6de&pbk=drl7nndYdfzZY1aQ0eUAWmNV0nsHig2uDnu9siy9biQ#%40SylphNet%20%7C%201405-07-25%20%231
 vmess://eyJ2IjogIjIiLCAicHMiOiAiQFN5bHBoTmV0IHwgMTQwNS0wNy0yNSAjMiIsICJhZGQiOiAiMTQxLjk1LjY1LjkiLCAicG9ydCI6ICIxMjM0IiwgImlkIjogIjVjMDQwZjFkLTQ1ZGItNDNiZC04ZDQ2LWU0OTUwZTQzMzczNSIsICJhaWQiOiAiMCIsICJzY3kiOiAiYWVzLTEyOC1nY20iLCAibmV0IjogInRjcCIsICJ0eXBlIjogIiIsICJ0bHMiOiAidGxzIiwgInNuaSI6ICJzdXBlcnZwbi5zdXBlci5jb20ifQ==
