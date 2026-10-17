@@ -4,14 +4,29 @@ on:
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
+    inputs:
+      chain:
+        description: 'continue scheduled chain'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+  actions: write
+
+concurrency:
+  group: sub-refresh
+  cancel-in-progress: false
 
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
+      - name: Pace
+        if: inputs.chain == true
+        run: sleep 870
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
@@ -33,3 +48,9 @@ jobs:
           git diff --staged --quiet && echo "No changes" && exit 0
           git commit -m "Update subscription - $(date -u '+%Y-%m-%d %H:%M UTC')"
           git push
+
+      - name: Continue chain
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.chain == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run sylphnet-update.yml --ref main -f chain=true
