@@ -1,6 +1,6 @@
 #profile-title: SylphNet | 1405-08-01
 #profile-update-interval: 1
-#last-update: 2026-10-23 14:04 UTC
+#last-update: 2026-10-23 14:19 UTC
 #configs: 353 aggregated
 vless://bfd81b63-a43d-4c27-b71d-2c948cfc4ab2@179.237.109.135:443?security=reality&type=tcp&sni=seznam.cz&fp=chrome&flow=xtls-rprx-vision&sid=7791e189a518d69e&pbk=D3LM6JIYP6kL--jSCj-BPj-qy-J7rzX0Jp9Z4ygNeV4&encryption=none#%40SylphNet%20%7C%201405-08-01%20%231
 vmess://eyJ2IjogIjIiLCAicHMiOiAiQFN5bHBoTmV0IHwgMTQwNS0wOC0wMSAjMiIsICJhZGQiOiAiMTYyLjE5LjIwNC43MSIsICJwb3J0IjogIjEyMzQiLCAiaWQiOiAiNWMwNDBmMWQtNDVkYi00M2JkLThkNDYtZTQ5NTBlNDMzNzM1IiwgImFpZCI6ICIwIiwgInNjeSI6ICJhdXRvIiwgIm5ldCI6ICJ0Y3AiLCAidHlwZSI6ICIiLCAidGxzIjogInRscyIsICJzbmkiOiAic3VwZXJ2cG4uc3VwZXIuY29tIn0=
