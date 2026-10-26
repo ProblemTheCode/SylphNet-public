@@ -1,6 +1,6 @@
 #profile-title: SylphNet | 1405-08-04
 #profile-update-interval: 1
-#last-update: 2026-10-26 13:06 UTC
+#last-update: 2026-10-26 13:21 UTC
 #configs: 315 aggregated
 vless://ded83071-f858-448c-b832-135db1c9056f@www.visa.com.hk:443?security=tls&type=ws&path=%2Fannouncement%3Fed%3D2048&host=it-mil.862400.xyz&sni=it-mil.862400.xyz&fp=random&encryption=none#%40SylphNet%20%7C%201405-08-04%20%231
 vless://ded83071-f858-448c-b832-135db1c9056f@freev2.cloudflare.182682.xyz:443?security=tls&type=ws&path=%2Fannouncement%3Fed%3D2048&host=eu-central.862400.xyz&sni=eu-central.862400.xyz&fp=random&encryption=none#%40SylphNet%20%7C%201405-08-04%20%232
