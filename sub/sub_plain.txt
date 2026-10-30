@@ -1,6 +1,6 @@
 #profile-title: SylphNet | 1405-08-08
 #profile-update-interval: 1
-#last-update: 2026-10-30 13:23 UTC
+#last-update: 2026-10-30 13:37 UTC
 #configs: 314 aggregated
 vmess://eyJ2IjogIjIiLCAicHMiOiAiQFN5bHBoTmV0IHwgMTQwNS0wOC0wOCAjMSIsICJhZGQiOiAiMTQxLjk1LjY1LjkiLCAicG9ydCI6ICIxMjM0IiwgImlkIjogIjVjMDQwZjFkLTQ1ZGItNDNiZC04ZDQ2LWU0OTUwZTQzMzczNSIsICJhaWQiOiAiMCIsICJzY3kiOiAiYWVzLTEyOC1nY20iLCAibmV0IjogInRjcCIsICJ0eXBlIjogIiIsICJ0bHMiOiAidGxzIiwgInNuaSI6ICJzdXBlcnZwbi5zdXBlci5jb20ifQ==
 vless://47e7e14d-2519-4146-aa2f-6eaa52c0a908@fly.lumexa.ir:443?security=reality&type=tcp&sni=dynu.com&fp=firefox&flow=xtls-rprx-vision&sid=9cc0&pbk=0E-OTXVHsukKvwgwynrI49nTaT5m6rxdaFPg4D_UszI&encryption=none#%40SylphNet%20%7C%201405-08-08%20%232
