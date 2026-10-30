@@ -1,6 +1,6 @@
 #profile-title: SylphNet | 1405-08-08
 #profile-update-interval: 1
-#last-update: 2026-10-30 10:11 UTC
+#last-update: 2026-10-30 10:26 UTC
 #configs: 357 aggregated
 vless://7c730089-1791-4828-89b2-86e7e1663063@94.237.28.66:443?security=none&type=ws&path=%2F&host=play.google.com#%40SylphNet%20%7C%201405-08-08%20%231
 vmess://eyJ2IjogIjIiLCAicHMiOiAiQFN5bHBoTmV0IHwgMTQwNS0wOC0wOCAjMiIsICJhZGQiOiAiMTYyLjE5LjIwNC43MSIsICJwb3J0IjogIjEyMzQiLCAiaWQiOiAiNWMwNDBmMWQtNDVkYi00M2JkLThkNDYtZTQ5NTBlNDMzNzM1IiwgImFpZCI6ICIwIiwgInNjeSI6ICJhdXRvIiwgIm5ldCI6ICJ0Y3AiLCAidHlwZSI6ICIiLCAidGxzIjogInRscyIsICJzbmkiOiAic3VwZXJ2cG4uc3VwZXIuY29tIn0=
