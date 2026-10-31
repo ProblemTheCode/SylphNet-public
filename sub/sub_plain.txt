@@ -1,6 +1,6 @@
 #profile-title: SylphNet | 1405-08-09
 #profile-update-interval: 1
-#last-update: 2026-10-31 11:19 UTC
+#last-update: 2026-10-31 11:34 UTC
 #configs: 369 aggregated
 vless://4f735420-0179-45d7-ba4e-ed66d1bf3a89@www.visa.com.hk:443?security=tls&type=ws&path=%2Fannouncement%3Fed%3D2048&host=it-mil.862400.xyz&sni=it-mil.862400.xyz&fp=random&encryption=none#%40SylphNet%20%7C%201405-08-09%20%231
 vmess://eyJ2IjogIjIiLCAicHMiOiAiQFN5bHBoTmV0IHwgMTQwNS0wOC0wOSAjMiIsICJhZGQiOiAiMTcyLjY3LjE1Ni4xMjEiLCAicG9ydCI6ICI0NDMiLCAiaWQiOiAiZTcwYTViNzAtZjYzYy00NDUwLWFmOGItOTQ5OTBjZGY4MGMwIiwgImFpZCI6ICIwIiwgInNjeSI6ICJhdXRvIiwgIm5ldCI6ICJ3cyIsICJ0eXBlIjogIiIsICJ0bHMiOiAidGxzIiwgInNuaSI6ICJ3d3cuZ3B0Y2xvdWRhaS5jb20iLCAicGF0aCI6ICIvdHJ1dGgiLCAiaG9zdCI6ICJ3d3cuZ3B0Y2xvdWRhaS5jb20ifQ==
