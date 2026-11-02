@@ -1,6 +1,6 @@
 #profile-title: SylphNet | 1405-08-11
 #profile-update-interval: 1
-#last-update: 2026-11-02 21:15 UTC
+#last-update: 2026-11-02 21:29 UTC
 #configs: 320 aggregated
 vmess://eyJ2IjogIjIiLCAicHMiOiAiQFN5bHBoTmV0IHwgMTQwNS0wOC0xMSAjMSIsICJhZGQiOiAiMTYyLjE5LjIwNC43MSIsICJwb3J0IjogIjEyMzQiLCAiaWQiOiAiNWMwNDBmMWQtNDVkYi00M2JkLThkNDYtZTQ5NTBlNDMzNzM1IiwgImFpZCI6ICIwIiwgInNjeSI6ICJhdXRvIiwgIm5ldCI6ICJ0Y3AiLCAidHlwZSI6ICIiLCAidGxzIjogInRscyIsICJzbmkiOiAic3VwZXJ2cG4uc3VwZXIuY29tIn0=
 vless://7c9b4360-6be9-47f2-ace9-b87297ea3d8f@157.90.165.181:11762?security=reality&type=tcp&sni=swdist.apple.com&fp=chrome&flow=xtls-rprx-vision&pbk=R2gKMF0Tetlnesc1pPkZH9NaOeehw-f5_U9JKG_cLjU&encryption=none#%40SylphNet%20%7C%201405-08-11%20%232
