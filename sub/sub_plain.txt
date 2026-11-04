@@ -1,6 +1,6 @@
 #profile-title: SylphNet | 1405-08-13
 #profile-update-interval: 1
-#last-update: 2026-11-04 23:22 UTC
+#last-update: 2026-11-04 23:37 UTC
 #configs: 312 aggregated
 trojan://5t6i121em5lkmsmk@de001.zestapp778.com:51520?sni=de001.zestapp778.com&allowInsecure=1&type=tcp#%40SylphNet%20%7C%201405-08-13%20%231
 trojan://5t6i121em5lkmsmk@136.244.91.14:51520?sni=de001.zestapp778.com&type=tcp&fp=chrome#%40SylphNet%20%7C%201405-08-13%20%232
