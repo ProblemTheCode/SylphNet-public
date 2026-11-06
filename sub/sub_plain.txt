@@ -1,6 +1,6 @@
 #profile-title: SylphNet | 1405-08-15
 #profile-update-interval: 1
-#last-update: 2026-11-06 16:06 UTC
+#last-update: 2026-11-06 16:21 UTC
 #configs: 293 aggregated
 ss://YWVzLTI1Ni1nY206WlJwZ2FCZUd4dEVOSVhndmhwa1pCS3o5R25XUlMyZFljeDlPK2EyaXdOND0=@57.129.76.233:19999#%40SylphNet%20%7C%201405-08-15%20%231
 trojan://6cddea99-9b18-4d42-8638-131bd9f5374f@jp1.8b1c7c70-ecf1-6891-9fa7-68a86662f902.cheathub.net:443?sni=8b1c7c70-ecf1-6891-9fa7-68a86662f902.cheathub.net&allowInsecure=1&type=tcp&fp=chrome#%40SylphNet%20%7C%201405-08-15%20%232
