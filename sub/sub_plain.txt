@@ -1,6 +1,6 @@
 #profile-title: SylphNet | 1405-08-15
 #profile-update-interval: 1
-#last-update: 2026-11-06 07:46 UTC
+#last-update: 2026-11-06 08:01 UTC
 #configs: 335 aggregated
 vless://73a0f995-f2f1-4d47-a99d-a6dcc1952bf9@de-4.it-crp.ru:443?security=reality&type=tcp&sni=de-4.it-crp.ru&fp=firefox&flow=xtls-rprx-vision&sid=a1b2c3d4b5&pbk=HLKQ0JvyaZ16JNdl0pbEPkiVRYJDiZNzGz9prDMiw2s&encryption=none#%40SylphNet%20%7C%201405-08-15%20%231
 ss://YWVzLTI1Ni1nY206WlJwZ2FCZUd4dEVOSVhndmhwa1pCS3o5R25XUlMyZFljeDlPK2EyaXdOND0=@57.129.76.233:19999#%40SylphNet%20%7C%201405-08-15%20%232
