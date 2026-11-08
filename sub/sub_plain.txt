@@ -1,6 +1,6 @@
 #profile-title: SylphNet | 1405-08-17
 #profile-update-interval: 1
-#last-update: 2026-11-08 02:09 UTC
+#last-update: 2026-11-08 02:24 UTC
 #configs: 331 aggregated
 vless://f1f7b063-621c-48fb-9091-81ad5f3a2213@ct.877774.xyz:443?security=tls&type=ws&path=%2Fannouncement%3Fed%3D2048&host=it-mil.862400.xyz&sni=it-mil.862400.xyz&fp=random&encryption=none#%40SylphNet%20%7C%201405-08-17%20%231
 trojan://5t6i121em5lkmsmk@de001.zestapp778.com:51520?sni=de001.zestapp778.com&allowInsecure=1&type=tcp&fp=chrome#%40SylphNet%20%7C%201405-08-17%20%232
